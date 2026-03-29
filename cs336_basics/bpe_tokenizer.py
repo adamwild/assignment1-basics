@@ -27,63 +27,98 @@ def pre_tokenize(args):
 
     return frequency_table
 
+def add_pair_neighbors(byte_pair_count, byte_pair, count):
+    # Initialize or update the byte_pair entry
+    if byte_pair not in byte_pair_count:
+        byte_pair_count[byte_pair] = count
+    else:
+        byte_pair_count[byte_pair] += count
 
-def build_detailed_byte_pair_count(
-        frequency_table
+    return byte_pair_count
+
+def build_byte_pair_count(
+        s_frequency_table
 ):
+
+    byte_pair_count = {}
+
+    for s_token, count in s_frequency_table.items():
+        for byte_ind in range(len(s_token)-1):
+            b1, b2 = s_token[byte_ind], s_token[byte_ind+1]
+            byte_pair_count = add_pair_neighbors(byte_pair_count, (b1, b2), count)
+
+    return byte_pair_count
+
+def split_frequency_table(frequency_table):
+    """Done once, breaks the token: count into tuple[token_bytes]: count
+    """
     def break_token(token):
-        return [char.encode("utf-8") for char in token]
-    
-    def add_pair_neighbors(detailed_byte_pair_count, byte_pair, prev, next, count):
-        # Initialize or update the byte_pair entry
-        if byte_pair not in detailed_byte_pair_count:
-            detailed_byte_pair_count[byte_pair] = {
-                'prev': {},
-                'next': {},
-                'count': count
-            }
-        else:
-            detailed_byte_pair_count[byte_pair]['count'] += count
+        return tuple([char.encode("utf-8") for char in token])
 
-        if prev:
-            prev_dict = detailed_byte_pair_count[byte_pair]['prev']
-            prev_dict[prev] = prev_dict.get(prev, 0) + count
+    s_frequency_table = {break_token(token): count for token, count in frequency_table.items()}
 
-        if next:
-            next_dict = detailed_byte_pair_count[byte_pair]['next']
-            next_dict[next] = next_dict.get(next, 0) + count
+    return s_frequency_table
 
-        return detailed_byte_pair_count
+def apply_merge(s_frequency_table, merge_pair):
+    """Given a merge_pair, combine bytes in the split frequency table"""
+    new_s_frequency_table = {}
+    new_byte_pair_count = {}
 
-    detailed_byte_pair_count = {}
+    just_merged = False
 
-    for token, count in frequency_table.items():
-        bytes_token = break_token(token)
-        for byte_ind in range(len(bytes_token)-1):
-            b1, b2 = bytes_token[byte_ind], bytes_token[byte_ind+1]
-            prev = None
-            if byte_ind != 0:
-                prev = bytes_token[byte_ind-1]
-            next= None
-            if byte_ind <= len(bytes_token)-3:
-                next = bytes_token[byte_ind+2]
+    merged_pair = merge_pair[0] + merge_pair[1]
 
-            detailed_byte_pair_count = add_pair_neighbors(detailed_byte_pair_count, (b1, b2), prev, next, count)
+    for s_token, count in s_frequency_table.items():
+        new_s_token = []
+        if len(s_token) == 1:
+            new_s_frequency_table[tuple(s_token)] = count
+            continue
+        
+        elif len(s_token) == 2:
+            b1, b2 = s_token
+            if (b1, b2) == merge_pair:
+                new_s_frequency_table[tuple(merged_pair)] = count
+                continue
+            new_s_frequency_table[(b1, b2)] = count
+            new_byte_pair_count = add_pair_neighbors(new_byte_pair_count, (b1, b2), count)
+            continue
 
-    return detailed_byte_pair_count
+        for ind, (b1, b2, b3) in enumerate(zip(s_token[:-2], s_token[1:-1], s_token[2:])):
 
-def next_merge(detailed_byte_pair_count):
+            if just_merged:
+                just_merged = False
+                new_byte_pair_count = add_pair_neighbors(new_byte_pair_count, (merged_pair, b2), count)
+                continue
+
+            if (b1, b2) == merge_pair:
+                new_s_token.append(merged_pair)
+                just_merged = True
+
+            elif (b2, b3) == merge_pair:
+                new_s_token.append(b1)
+                new_byte_pair_count = add_pair_neighbors(new_byte_pair_count, (b1, merged_pair), count)
+                if ind == len(s_token[:-2])-1:
+                    new_s_token.append(merged_pair)
+
+            else:
+                new_s_token.append(b1)
+                new_byte_pair_count = add_pair_neighbors(new_byte_pair_count, (b1, b2), count)
+                if ind == len(s_token[:-2])-1:
+                    new_s_token.append(b2)
+                    new_s_token.append(b3)
+                    new_byte_pair_count = add_pair_neighbors(new_byte_pair_count, (b2, b3), count)
+
+        new_s_frequency_table[tuple(new_s_token)] = count
+
+    return new_s_frequency_table, new_byte_pair_count
+
+def get_next_merge(byte_pair_count):
     # Next pair to merge by finding pairs with highest counts, ties are broken lexicographically
-    max_count = max(item['count'] for item in detailed_byte_pair_count.values())
-    tied_first_place = [byte_pair for byte_pair, data in detailed_byte_pair_count.items() if data['count'] == max_count]
+    max_count = max(count for count in byte_pair_count.values())
+    tied_first_place = [byte_pair for byte_pair, count in byte_pair_count.items() if count == max_count]
     next_pair_merge = max(tied_first_place)
     
-    b1, b2 = next_pair_merge
-    c = b1 + b2
-    for b3, count in detailed_byte_pair_count[next_pair_merge]['next'].items():
-        detailed_byte_pair_count[(c, b3)] = {'prev': {}, 'next': {},'count': count}
-
-
+    return next_pair_merge
 
 def train_bpe(
     input_path: str | os.PathLike,
@@ -118,10 +153,15 @@ def train_bpe(
     frequency_table = dict(frequency_table)
 
     # Merging step
-    detailed_byte_pair_count = build_detailed_byte_pair_count(frequency_table)
+    # Initial split of the token into bytes tuples
+    s_frequency_table = split_frequency_table(frequency_table)
+    byte_pair_count = build_byte_pair_count(s_frequency_table)
 
-    detailed_byte_pair_count = next_merge(detailed_byte_pair_count)
-
+    # Merge loop
+    for i in range(6):
+        new_merge = get_next_merge(byte_pair_count)
+        s_frequency_table, byte_pair_count = apply_merge(s_frequency_table, new_merge)
+        print(new_merge)
 
 
 if __name__ == "__main__":
