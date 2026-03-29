@@ -29,6 +29,9 @@ def pre_tokenize(args):
 
 def add_pair_neighbors(byte_pair_count, byte_pair, count):
     # Initialize or update the byte_pair entry
+    if not type(byte_pair[0]) == bytes:
+        raise("add_pair_neighbors!")
+
     if byte_pair not in byte_pair_count:
         byte_pair_count[byte_pair] = count
     else:
@@ -53,6 +56,7 @@ def split_frequency_table(frequency_table):
     """Done once, breaks the token: count into tuple[token_bytes]: count
     """
     def break_token(token):
+
         return tuple([char.encode("utf-8") for char in token])
 
     s_frequency_table = {break_token(token): count for token, count in frequency_table.items()}
@@ -60,55 +64,37 @@ def split_frequency_table(frequency_table):
     return s_frequency_table
 
 def apply_merge(s_frequency_table, merge_pair):
-    """Given a merge_pair, combine bytes in the split frequency table"""
     new_s_frequency_table = {}
     new_byte_pair_count = {}
-
-    just_merged = False
-
-    merged_pair = merge_pair[0] + merge_pair[1]
+    
+    b1_target, b2_target = merge_pair
+    merged_token = b1_target + b2_target
 
     for s_token, count in s_frequency_table.items():
-        new_s_token = []
-        if len(s_token) == 1:
-            new_s_frequency_table[tuple(s_token)] = count
-            continue
-        
-        elif len(s_token) == 2:
-            b1, b2 = s_token
-            if (b1, b2) == merge_pair:
-                new_s_frequency_table[tuple(merged_pair)] = count
-                continue
-            new_s_frequency_table[(b1, b2)] = count
-            new_byte_pair_count = add_pair_neighbors(new_byte_pair_count, (b1, b2), count)
+        # Handle single-byte tokens immediately
+        if len(s_token) < 2:
+            new_s_frequency_table[s_token] = new_s_frequency_table.get(s_token, 0) + count
             continue
 
-        for ind, (b1, b2, b3) in enumerate(zip(s_token[:-2], s_token[1:-1], s_token[2:])):
-
-            if just_merged:
-                just_merged = False
-                new_byte_pair_count = add_pair_neighbors(new_byte_pair_count, (merged_pair, b2), count)
-                continue
-
-            if (b1, b2) == merge_pair:
-                new_s_token.append(merged_pair)
-                just_merged = True
-
-            elif (b2, b3) == merge_pair:
-                new_s_token.append(b1)
-                new_byte_pair_count = add_pair_neighbors(new_byte_pair_count, (b1, merged_pair), count)
-                if ind == len(s_token[:-2])-1:
-                    new_s_token.append(merged_pair)
-
+        new_token = []
+        i = 0
+        while i < len(s_token):
+            # Check if current pair matches the merge_pair
+            if i < len(s_token) - 1 and s_token[i] == b1_target and s_token[i+1] == b2_target:
+                new_token.append(merged_token)
+                i += 2 # Skip both bytes since they are now one
             else:
-                new_s_token.append(b1)
-                new_byte_pair_count = add_pair_neighbors(new_byte_pair_count, (b1, b2), count)
-                if ind == len(s_token[:-2])-1:
-                    new_s_token.append(b2)
-                    new_s_token.append(b3)
-                    new_byte_pair_count = add_pair_neighbors(new_byte_pair_count, (b2, b3), count)
+                new_token.append(s_token[i])
+                i += 1
+        
+        # Convert back to tuple for the table key
+        new_token_tuple = tuple(new_token)
+        new_s_frequency_table[new_token_tuple] = new_s_frequency_table.get(new_token_tuple, 0) + count
 
-        new_s_frequency_table[tuple(new_s_token)] = count
+        # Update the pair counts for the NEXT iteration
+        for j in range(len(new_token) - 1):
+            pair = (new_token[j], new_token[j+1])
+            new_byte_pair_count[pair] = new_byte_pair_count.get(pair, 0) + count
 
     return new_s_frequency_table, new_byte_pair_count
 
@@ -119,6 +105,16 @@ def get_next_merge(byte_pair_count):
     next_pair_merge = max(tied_first_place)
     
     return next_pair_merge
+
+def init_vocab(special_tokens):
+    vocab = {num_token: token.encode("utf-8") for num_token, token in enumerate(special_tokens)}
+
+    num_special_tokens = len(special_tokens)
+
+    for num in range(256):
+        vocab[num+num_special_tokens] = bytes([num])
+
+    return vocab
 
 def train_bpe(
     input_path: str | os.PathLike,
@@ -158,16 +154,27 @@ def train_bpe(
     byte_pair_count = build_byte_pair_count(s_frequency_table)
 
     # Merge loop
-    for i in range(6):
+    merges = []
+    vocab = init_vocab(special_tokens)
+    while len(vocab) < vocab_size:
         new_merge = get_next_merge(byte_pair_count)
-        s_frequency_table, byte_pair_count = apply_merge(s_frequency_table, new_merge)
-        print(new_merge)
+        merges.append(new_merge)
 
+        s_frequency_table, byte_pair_count = apply_merge(s_frequency_table, new_merge)
+
+        vocab[len(vocab)] = new_merge[0] + new_merge[1]
+
+    return vocab, merges
 
 if __name__ == "__main__":
     import pathlib
     data_path = (pathlib.Path(__file__).resolve().parent.parent) / "data"
+    fixtures_path = (pathlib.Path(__file__).resolve().parent.parent) / 'tests' / "fixtures"
     test_file = data_path / 'basic_bpe_example.txt'
     special_tokens=["<|endoftext|>"]
 
-    train_bpe(test_file, 0, special_tokens)
+    corpus_en_file = fixtures_path / 'corpus.en'
+
+    vocab, merges = train_bpe(test_file, 263, special_tokens)
+    print(merges)
+
