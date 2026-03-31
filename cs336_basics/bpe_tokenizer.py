@@ -11,7 +11,7 @@ def pre_tokenize(args):
 
     with open(input_path, "rb") as f:
         f.seek(start)
-        chunk = f.read(end - start).decode("utf-8", errors="ignore")
+        chunk = f.read(end - start).decode("utf-8", errors="ignore").replace("\r\n", "\n")
     
     # Removing special tokens before pre-tokenization
     docs = re.split("|".join([re.escape(token) for token in special_tokens]), chunk)
@@ -56,8 +56,9 @@ def split_frequency_table(frequency_table):
     """Done once, breaks the token: count into tuple[token_bytes]: count
     """
     def break_token(token):
+        byte_string = token.encode("utf-8")
 
-        return tuple([char.encode("utf-8") for char in token])
+        return tuple(bytes([b]) for b in byte_string)
 
     s_frequency_table = {break_token(token): count for token, count in frequency_table.items()}
 
@@ -194,8 +195,6 @@ def train_bpe(
     if type(input_path) == str:
         input_path = pathlib.Path(input_path)
     
-    file_str = input_path.read_text(encoding="utf-8")
-
     # Chunking the file
     with open(input_path, "rb") as f:
         num_processes = multiprocessing.cpu_count()
