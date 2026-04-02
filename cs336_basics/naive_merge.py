@@ -53,6 +53,10 @@ def reduce_s_token(token_id, merge_pair, id_token_count, byte_pair_count, byte_p
                 byte_pair_count[(s_token[ind_byte-2], b1)] -= token_count
                 byte_pair_index[(s_token[ind_byte-2], b1)].remove(token_id)
 
+                if not byte_pair_count[(s_token[ind_byte-2], b1)]:
+                    del byte_pair_count[(s_token[ind_byte-2], b1)]
+                    del byte_pair_index[(s_token[ind_byte-2], b1)]
+
             has_merged = False
 
             # b1, b2
@@ -77,6 +81,10 @@ def reduce_s_token(token_id, merge_pair, id_token_count, byte_pair_count, byte_p
                     byte_pair_count[(mp2, mp1)] -= token_count
                     byte_pair_index[(mp2, mp1)].remove(token_id)
 
+                    if not byte_pair_count[(mp2, mp1)]:
+                        del byte_pair_count[(mp2, mp1)]
+                        del byte_pair_index[(mp2, mp1)]
+
                 # Previous byte was a normal one, handle b0, mp
                 else:
                     byte_pair_count[(b0, merged_bytes)] = byte_pair_count.get((b0, merged_bytes), 0) + token_count
@@ -84,6 +92,10 @@ def reduce_s_token(token_id, merge_pair, id_token_count, byte_pair_count, byte_p
 
                     byte_pair_count[(b0, b1)] -= token_count
                     byte_pair_index[(b0, b1)].remove(token_id)
+
+                    if not byte_pair_count[(b0, b1)]:
+                        del byte_pair_count[(b0, b1)]
+                        del byte_pair_index[(b0, b1)]
 
             ind_byte += 2
 
