@@ -5,7 +5,7 @@ from collections import defaultdict
 from multiprocessing import Pool
 from itertools import repeat
 from cs336_basics.pretokenization_example import find_chunk_boundaries
-from cs336_basics.naive_merge import naive_merge_loop
+from cs336_basics.naive_merge import naive_merge_loop, get_next_merge, reduce_s_token
 
 def pre_tokenize(args):
     (start, end), input_path, special_tokens = args
@@ -53,13 +53,14 @@ def build_byte_pair_count(
 
     return byte_pair_count
 
+def break_token(token):
+    byte_string = token.encode("utf-8")
+
+    return tuple(bytes([b]) for b in byte_string)
+
 def split_frequency_table(frequency_table):
     """Done once, breaks the token: count into tuple[token_bytes]: count
     """
-    def break_token(token):
-        byte_string = token.encode("utf-8")
-
-        return tuple(bytes([b]) for b in byte_string)
 
     s_frequency_table = {break_token(token): count for token, count in frequency_table.items()}
 
@@ -102,23 +103,60 @@ def train_bpe(
     # Combining all frequency_tables
     frequency_table = defaultdict(int)
 
+    # id_token_count = {168: [[b' ', b'l', b'ow'], 7]}
+    id_token_count = {}
+    pre_tokens = []
+
+    # byte_pair_index = {(b1, b2): [168, 94]}
+    byte_pair_index = {}
+
+    # byte_pair_count = {(b1, b2): 3}
+    byte_pair_count = {}
+
     for dictionary in frequency_tables:
-        for key, val in dictionary.items():
-            frequency_table[key] += val
-    frequency_table = dict(frequency_table)
+        for pre_token, pre_token_count in dictionary.items():
+            s_pre_token = break_token(pre_token)
+
+            # to delete
+            # frequency_table[pre_token] += pre_token_count
+
+            if pre_token not in pre_tokens:
+                pre_tokens.append(pre_token)
+
+            if pre_tokens.index(pre_token) not in id_token_count:
+                id_token_count[pre_tokens.index(pre_token)] = [s_pre_token, pre_token_count]
+            else:
+                id_token_count[pre_tokens.index(pre_token)][1] += pre_token_count
+
+            if len(s_pre_token) >= 2:
+                for b1, b2 in zip(s_pre_token[:-1], s_pre_token[1:]):
+                    byte_pair_index.setdefault((b1, b2), []).append(pre_tokens.index(pre_token))
+                    byte_pair_count[(b1, b2)] = byte_pair_count.get((b1, b2), 0) + pre_token_count
+            
+
+    # to delete
+    # frequency_table = dict(frequency_table)
 
     # Merging step
     # Initial split of the token into bytes tuples
-    s_frequency_table = split_frequency_table(frequency_table)
-    byte_pair_count = build_byte_pair_count(s_frequency_table)
-
+    # s_frequency_table = split_frequency_table(frequency_table)
+    # byte_pair_count2 = build_byte_pair_count(s_frequency_table)
     # Merge loop
     merges = []
     vocab = init_vocab(special_tokens)
     while len(vocab) < vocab_size:
-        vocab, merges, s_frequency_table, byte_pair_count = naive_merge_loop(vocab, merges, s_frequency_table, byte_pair_count)
-        
-    print(time.time() - ref_time)
+        # vocab, merges, s_frequency_table, byte_pair_count = naive_merge_loop(vocab, merges, s_frequency_table, byte_pair_count)
+
+        new_merge = get_next_merge(byte_pair_count)
+        merges.append(new_merge)
+
+        for token_id in byte_pair_index[new_merge]:
+            id_token_count, byte_pair_count, byte_pair_index = reduce_s_token(token_id, new_merge, id_token_count, byte_pair_count, byte_pair_index)
+
+        del byte_pair_index[new_merge]
+        del byte_pair_count[new_merge]
+
+        vocab[len(vocab)] = new_merge[0] + new_merge[1]
 
     return vocab, merges
 
