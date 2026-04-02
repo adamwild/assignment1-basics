@@ -5,7 +5,7 @@ from collections import defaultdict
 from multiprocessing import Pool
 from itertools import repeat
 from cs336_basics.pretokenization_example import find_chunk_boundaries
-from cs336_basics.naive_merge import naive_merge_loop, get_next_merge, reduce_s_token
+from cs336_basics.naive_merge import get_next_merge, reduce_s_token
 
 def pre_tokenize(args):
     (start, end), input_path, special_tokens = args
@@ -57,14 +57,6 @@ def break_token(token):
     byte_string = token.encode("utf-8")
 
     return tuple(bytes([b]) for b in byte_string)
-
-def split_frequency_table(frequency_table):
-    """Done once, breaks the token: count into tuple[token_bytes]: count
-    """
-
-    s_frequency_table = {break_token(token): count for token, count in frequency_table.items()}
-
-    return s_frequency_table
 
 def init_vocab(special_tokens):
     vocab = {num_token: token.encode("utf-8") for num_token, token in enumerate(special_tokens)}
@@ -133,14 +125,6 @@ def train_bpe(
                     byte_pair_index.setdefault((b1, b2), []).append(pre_tokens.index(pre_token))
                     byte_pair_count[(b1, b2)] = byte_pair_count.get((b1, b2), 0) + pre_token_count
             
-
-    # to delete
-    # frequency_table = dict(frequency_table)
-
-    # Merging step
-    # Initial split of the token into bytes tuples
-    # s_frequency_table = split_frequency_table(frequency_table)
-    # byte_pair_count2 = build_byte_pair_count(s_frequency_table)
     # Merge loop
     merges = []
     vocab = init_vocab(special_tokens)
