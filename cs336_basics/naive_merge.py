@@ -6,6 +6,19 @@ def get_next_merge(byte_pair_count):
     
     return next_pair_merge
 
+def update_pair_index(pair_incr, pair_decr, byte_pair_count, byte_pair_index, token_count, token_id):
+    byte_pair_count[pair_incr] = byte_pair_count.get(pair_incr, 0) + token_count
+    byte_pair_index.setdefault(pair_incr, []).append(token_id)
+
+    byte_pair_count[pair_decr] -= token_count
+    byte_pair_index[pair_decr].remove(token_id)
+
+    if not byte_pair_count[pair_decr]:
+        del byte_pair_count[pair_decr]
+        del byte_pair_index[pair_decr]
+
+    return byte_pair_count, byte_pair_index
+
 def reduce_s_token(token_id, merge_pair, id_token_count, byte_pair_count, byte_pair_index):
     """From a s_token with at least one merge_pair, compute the resulting merged s_token
     Updates relevant indexes
@@ -47,15 +60,9 @@ def reduce_s_token(token_id, merge_pair, id_token_count, byte_pair_count, byte_p
 
             # m2, b1, cb2
             if has_merged:
-                byte_pair_count[(merged_bytes, b1)] = byte_pair_count.get((merged_bytes, b1), 0) + token_count
-                byte_pair_index.setdefault((merged_bytes, b1), []).append(token_id)
-
-                byte_pair_count[(s_token[ind_byte-2], b1)] -= token_count
-                byte_pair_index[(s_token[ind_byte-2], b1)].remove(token_id)
-
-                if not byte_pair_count[(s_token[ind_byte-2], b1)]:
-                    del byte_pair_count[(s_token[ind_byte-2], b1)]
-                    del byte_pair_index[(s_token[ind_byte-2], b1)]
+                pair_incr = (merged_bytes, b1)
+                pair_decr = (s_token[ind_byte-2], b1)
+                byte_pair_count, byte_pair_index = update_pair_index(pair_incr, pair_decr, byte_pair_count, byte_pair_index, token_count, token_id)
 
             has_merged = False
 
@@ -72,31 +79,17 @@ def reduce_s_token(token_id, merge_pair, id_token_count, byte_pair_count, byte_p
                 # Could either be the original previous bytes or a fresh mergure
                 b0 = new_s_token[-1]
                 
-
                 # If b0 was a previous merge (i.e. m0), the pair mp2, mp1 must be decreased
                 if has_merged:
-                    byte_pair_count[(merged_bytes, merged_bytes)] = byte_pair_count.get((merged_bytes, merged_bytes), 0) + token_count
-                    byte_pair_index.setdefault((merged_bytes, merged_bytes), []).append(token_id)
-
-                    byte_pair_count[(mp2, mp1)] -= token_count
-                    byte_pair_index[(mp2, mp1)].remove(token_id)
-
-                    if not byte_pair_count[(mp2, mp1)]:
-                        del byte_pair_count[(mp2, mp1)]
-                        del byte_pair_index[(mp2, mp1)]
+                    pair_incr = (merged_bytes, merged_bytes)
+                    pair_decr = (mp2, mp1)
+                    byte_pair_count, byte_pair_index = update_pair_index(pair_incr, pair_decr, byte_pair_count, byte_pair_index, token_count, token_id)
 
                 # Previous byte was a normal one, handle b0, mp
                 else:
-                    byte_pair_count[(b0, merged_bytes)] = byte_pair_count.get((b0, merged_bytes), 0) + token_count
-                    byte_pair_index.setdefault((b0, merged_bytes), []).append(token_id)
-
-                    byte_pair_count[(b0, b1)] -= token_count
-                    byte_pair_index[(b0, b1)].remove(token_id)
-
-                    if not byte_pair_count[(b0, b1)]:
-                        del byte_pair_count[(b0, b1)]
-                        del byte_pair_index[(b0, b1)]
-
+                    pair_incr = (b0, merged_bytes)
+                    pair_decr = (b0, b1)
+                    byte_pair_count, byte_pair_index = update_pair_index(pair_incr, pair_decr, byte_pair_count, byte_pair_index, token_count, token_id)
             ind_byte += 2
 
             new_s_token.append(merged_bytes)
