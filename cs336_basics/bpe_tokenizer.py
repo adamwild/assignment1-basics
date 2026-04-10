@@ -208,13 +208,12 @@ if __name__ == "__main__":
     tiny_stories_file = data_path / "TinyStoriesV2-GPT4-train.txt"
     OpenWebText_file = data_path / "owt_train.txt"
 
+    # Basic example
+    # vocab, merges = train_bpe(input_path=test_file, vocab_size=263, special_tokens=["<|endoftext|>"])
+
     # Practice test
     input_path = fixtures_path / "tinystories_sample_5M.txt"
-    vocab, merges = train_bpe(
-        input_path=input_path,
-        vocab_size=1000,
-        special_tokens=["<|endoftext|>"],
-    )
+    vocab, merges = train_bpe(input_path=input_path, vocab_size=1000, special_tokens=["<|endoftext|>"])
 
     # First exercise
     # vocab, merges = train_bpe(tiny_stories_file, 10000, special_tokens, folder_path=checkpoints_path)
