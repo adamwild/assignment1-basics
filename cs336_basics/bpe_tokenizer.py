@@ -76,7 +76,7 @@ def pre_tokenize(input_path, special_tokens):
     # Chunking the file
     with open(input_path, "rb") as f:
         num_processes = multiprocessing.cpu_count()
-        boundaries = find_chunk_boundaries(f, num_processes*8, b"<|endoftext|>")
+        boundaries = find_chunk_boundaries(f, num_processes*80, b"<|endoftext|>")
 
     # Parallelizing pre-tokenization
     start_end_pairs = zip(boundaries[:-1], boundaries[1:])
@@ -89,7 +89,8 @@ def pre_tokenize(input_path, special_tokens):
     # Combining all frequency_tables
     # id_token_count = {168: [[b' ', b'l', b'ow'], 7]}
     id_token_count = {}
-    pre_tokens = []
+    pre_tokens = set()
+    ind_pre_tokens = {}
 
     # byte_pair_index = {(b1, b2): [168, 94]}
     byte_pair_index = {}
@@ -106,16 +107,19 @@ def pre_tokenize(input_path, special_tokens):
             # frequency_table[pre_token] += pre_token_count
 
             if pre_token not in pre_tokens:
-                pre_tokens.append(pre_token)
+                pre_tokens.add(pre_token)
+                ind_pre_tokens[pre_token] = len(pre_tokens)
 
-            if pre_tokens.index(pre_token) not in id_token_count:
-                id_token_count[pre_tokens.index(pre_token)] = [s_pre_token, pre_token_count]
+            id_pre_token = ind_pre_tokens[pre_token]
+
+            if id_pre_token not in id_token_count:
+                id_token_count[id_pre_token] = [s_pre_token, pre_token_count]
             else:
-                id_token_count[pre_tokens.index(pre_token)][1] += pre_token_count
+                id_token_count[id_pre_token][1] += pre_token_count
 
             if len(s_pre_token) >= 2:
                 for b1, b2 in zip(s_pre_token[:-1], s_pre_token[1:]):
-                    byte_pair_index.setdefault((b1, b2), []).append(pre_tokens.index(pre_token))
+                    byte_pair_index.setdefault((b1, b2), []).append(id_pre_token)
                     byte_pair_count[(b1, b2)] = byte_pair_count.get((b1, b2), 0) + pre_token_count
 
     return id_token_count, byte_pair_count, byte_pair_index
@@ -177,7 +181,6 @@ def train_bpe(
     id_token_count, byte_pair_count, byte_pair_index = pre_tokenize(input_path, special_tokens)
 
     if 'folder_path' in kwargs:
-        print("gello?")
         dicts_to_save = {'id_token_count': id_token_count, 'byte_pair_count': byte_pair_count, 'byte_pair_index': byte_pair_index}
         save_checkpoint(dicts_to_save, kwargs['folder_path'])
 
@@ -206,10 +209,10 @@ if __name__ == "__main__":
     OpenWebText_file = data_path / "owt_train.txt"
 
     # First exercise
-    vocab, merges = train_bpe(tiny_stories_file, 10000, special_tokens, folder_path=checkpoints_path)
+    # vocab, merges = train_bpe(tiny_stories_file, 10000, special_tokens, folder_path=checkpoints_path)
 
     # Second running exercise 22:45
-    # vocab, merges = train_bpe(OpenWebText_file, 32000, special_tokens, folder_path=checkpoints_path)
+    vocab, merges = train_bpe(OpenWebText_file, 32000, special_tokens, folder_path=checkpoints_path)
 
     # read_checkpoint("vocab", checkpoints_path / 'TinyStories_10000')
 
