@@ -1,6 +1,7 @@
 import os
 import pickle
 import regex as re
+from tqdm import tqdm
 import multiprocessing
 from multiprocessing import Pool
 from itertools import repeat
@@ -75,14 +76,15 @@ def pre_tokenize(input_path, special_tokens):
     # Chunking the file
     with open(input_path, "rb") as f:
         num_processes = multiprocessing.cpu_count()
-        boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
+        boundaries = find_chunk_boundaries(f, num_processes*8, b"<|endoftext|>")
 
     # Parallelizing pre-tokenization
     start_end_pairs = zip(boundaries[:-1], boundaries[1:])
     args_list = list(zip(start_end_pairs, repeat(input_path), repeat(special_tokens)))
 
+    print("Pre-tokenization: Compute frequency_tables")
     with Pool() as pool:
-        frequency_tables = pool.map(compute_frequency_tables, args_list)
+        frequency_tables = list(tqdm(pool.imap_unordered(compute_frequency_tables, args_list), total=len(args_list)))
 
     # Combining all frequency_tables
     # id_token_count = {168: [[b' ', b'l', b'ow'], 7]}
@@ -95,7 +97,8 @@ def pre_tokenize(input_path, special_tokens):
     # byte_pair_count = {(b1, b2): 3}
     byte_pair_count = {}
 
-    for dictionary in frequency_tables:
+    print("Pre-tokenization: Merge frequency_tables into id_token_count, byte_pair_count, byte_pair_index")
+    for dictionary in tqdm(frequency_tables, desc="Processing frequency tables"):
         for pre_token, pre_token_count in dictionary.items():
             s_pre_token = break_token(pre_token)
 
@@ -121,19 +124,22 @@ def merge_loop(vocab_size, id_token_count, byte_pair_count, byte_pair_index, spe
     # Merge loop
     merges = []
     vocab = init_vocab(special_tokens)
-    while len(vocab) < vocab_size:
-        # vocab, merges, s_frequency_table, byte_pair_count = naive_merge_loop(vocab, merges, s_frequency_table, byte_pair_count)
+    with tqdm(total=vocab_size, desc="Building vocabulary") as pbar:
+        while len(vocab) < vocab_size:
+            # vocab, merges, s_frequency_table, byte_pair_count = naive_merge_loop(vocab, merges, s_frequency_table, byte_pair_count)
 
-        new_merge = get_next_merge(byte_pair_count)
-        merges.append(new_merge)
+            new_merge = get_next_merge(byte_pair_count)
+            merges.append(new_merge)
 
-        for token_id in byte_pair_index[new_merge]:
-            id_token_count, byte_pair_count, byte_pair_index = reduce_s_token(token_id, new_merge, id_token_count, byte_pair_count, byte_pair_index)
+            for token_id in byte_pair_index[new_merge]:
+                id_token_count, byte_pair_count, byte_pair_index = reduce_s_token(token_id, new_merge, id_token_count, byte_pair_count, byte_pair_index)
 
-        del byte_pair_index[new_merge]
-        del byte_pair_count[new_merge]
+            del byte_pair_index[new_merge]
+            del byte_pair_count[new_merge]
 
-        vocab[len(vocab)] = new_merge[0] + new_merge[1]
+            vocab[len(vocab)] = new_merge[0] + new_merge[1]
+
+            pbar.update(1)
 
     return vocab, merges
 
@@ -175,6 +181,7 @@ def train_bpe(
         dicts_to_save = {'id_token_count': id_token_count, 'byte_pair_count': byte_pair_count, 'byte_pair_index': byte_pair_index}
         save_checkpoint(dicts_to_save, kwargs['folder_path'])
 
+    print("Merge loop")
     vocab, merges = merge_loop(vocab_size, id_token_count, byte_pair_count, byte_pair_index, special_tokens)
 
     if 'folder_path' in kwargs:
@@ -199,10 +206,10 @@ if __name__ == "__main__":
     OpenWebText_file = data_path / "owt_train.txt"
 
     # First exercise
-    # vocab, merges = train_bpe(tiny_stories_file, 10000, special_tokens, folder_path=checkpoints_path)
+    vocab, merges = train_bpe(tiny_stories_file, 10000, special_tokens, folder_path=checkpoints_path)
 
     # Second running exercise 22:45
-    vocab, merges = train_bpe(OpenWebText_file, 32000, special_tokens, folder_path=checkpoints_path)
+    # vocab, merges = train_bpe(OpenWebText_file, 32000, special_tokens, folder_path=checkpoints_path)
 
     # read_checkpoint("vocab", checkpoints_path / 'TinyStories_10000')
 
