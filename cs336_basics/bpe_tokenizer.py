@@ -135,7 +135,7 @@ def merge_loop(vocab_size, id_token_count, byte_pair_count, byte_pair_index, spe
             new_merge = get_next_merge(byte_pair_count)
             merges.append(new_merge)
 
-            for token_id in byte_pair_index[new_merge]:
+            for token_id in set(byte_pair_index[new_merge]):
                 id_token_count, byte_pair_count, byte_pair_index = reduce_s_token(token_id, new_merge, id_token_count, byte_pair_count, byte_pair_index)
 
             del byte_pair_index[new_merge]
