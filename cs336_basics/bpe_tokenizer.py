@@ -76,6 +76,7 @@ def pre_tokenize(input_path, special_tokens):
     # Chunking the file
     with open(input_path, "rb") as f:
         num_processes = multiprocessing.cpu_count()
+        # Higher num_processes*X, the easier on the memory; Lower on the X, the easier on the different dict we have to compute
         boundaries = find_chunk_boundaries(f, num_processes*80, b"<|endoftext|>")
 
     # Parallelizing pre-tokenization
@@ -193,8 +194,6 @@ def train_bpe(
 
     return vocab, merges
 
-
-
 if __name__ == "__main__":
     import pathlib
     data_path = (pathlib.Path(__file__).resolve().parent.parent) / "data"
@@ -213,7 +212,7 @@ if __name__ == "__main__":
 
     # Practice test
     input_path = fixtures_path / "tinystories_sample_5M.txt"
-    vocab, merges = train_bpe(input_path=input_path, vocab_size=1000, special_tokens=["<|endoftext|>"])
+    # vocab, merges = train_bpe(input_path=input_path, vocab_size=1000, special_tokens=["<|endoftext|>"])
 
     # First exercise
     # vocab, merges = train_bpe(tiny_stories_file, 10000, special_tokens, folder_path=checkpoints_path)
@@ -221,6 +220,6 @@ if __name__ == "__main__":
     # Second running exercise 22:45
     # vocab, merges = train_bpe(OpenWebText_file, 32000, special_tokens, folder_path=checkpoints_path)
 
-    # read_checkpoint("vocab", checkpoints_path / 'TinyStories_10000')
+    # read_checkpoint("vocab", checkpoints_path / 'owt')
 
 

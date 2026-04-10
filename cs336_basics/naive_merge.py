@@ -11,7 +11,6 @@ def update_pair_index(pair_incr, pair_decr, byte_pair_count, byte_pair_index, to
     byte_pair_index.setdefault(pair_incr, []).append(token_id)
 
     byte_pair_count[pair_decr] -= token_count
-    byte_pair_index[pair_decr].remove(token_id)
 
     if not byte_pair_count[pair_decr]:
         del byte_pair_count[pair_decr]
