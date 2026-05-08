@@ -1,4 +1,5 @@
 import os
+import json
 import pickle
 import regex as re
 from tqdm import tqdm
@@ -77,7 +78,7 @@ def pre_tokenize(input_path, special_tokens):
     with open(input_path, "rb") as f:
         num_processes = multiprocessing.cpu_count()
         # Higher num_processes*X, the easier on the memory; Lower on the X, the easier on the different dict we have to compute
-        boundaries = find_chunk_boundaries(f, num_processes*80, b"<|endoftext|>")
+        boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
 
     # Parallelizing pre-tokenization
     start_end_pairs = zip(boundaries[:-1], boundaries[1:])
@@ -165,12 +166,38 @@ def read_checkpoint(datapoint_name, folder_checkpoints):
     with open(folder_checkpoints / datapoint_name, "rb") as f:
         datapoint = pickle.load(f)
 
+    s = ""
+    for key, val in datapoint.items():
+        s += f"{key} {val}\n"
+    with open(folder_checkpoints / "vocab.txt", 'w') as f:
+        f.write(s)
+
+
     if type(datapoint) == dict:
         for key, val in datapoint.items():
             print(key, val)
 
     else: 
         print(datapoint)
+
+def standardize_checkpoints(folder_checkpoints):
+    """Takes the dumps of checkpoints vocab and merge and saves to the canonical format"""
+    # Merges
+    with open(folder_checkpoints / "merges", "rb") as f:
+        datapoint = pickle.load(f)
+
+    s = ""
+    for elt in datapoint:
+        s += f"{elt}\n"
+    with open(folder_checkpoints / "merges.txt", 'w') as f:
+        f.write(s)
+
+    # Vocab
+    with open(folder_checkpoints / "vocab", "rb") as f:
+        vocab = pickle.load(f)
+
+    with open(folder_checkpoints / "vocab.json", 'w', encoding='utf-8') as f:
+        json.dump(vocab, f, indent=4, ensure_ascii=False)
 
 def train_bpe(
     input_path: str | os.PathLike,
@@ -221,5 +248,6 @@ if __name__ == "__main__":
     # vocab, merges = train_bpe(OpenWebText_file, 32000, special_tokens, folder_path=checkpoints_path)
 
     # read_checkpoint("vocab", checkpoints_path / 'owt')
+    standardize_checkpoints(checkpoints_path / 'owt')
 
 
