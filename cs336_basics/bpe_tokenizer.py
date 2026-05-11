@@ -166,16 +166,24 @@ def read_checkpoint(datapoint_name, folder_checkpoints):
     with open(folder_checkpoints / datapoint_name, "rb") as f:
         datapoint = pickle.load(f)
 
-    s = ""
-    for key, val in datapoint.items():
-        s += f"{key} {val}\n"
-    with open(folder_checkpoints / "vocab.txt", 'w') as f:
-        f.write(s)
+    
 
 
     if type(datapoint) == dict:
+        s = ""
         for key, val in datapoint.items():
-            print(key, val)
+            s += f"{key} {val}\n"
+        with open(folder_checkpoints / "vocab.txt", 'w') as f:
+            f.write(s)
+
+        longest_word, length_longest = None, 0
+        for key, val in datapoint.items():
+            if len(val) > length_longest:
+                longest_word = val
+                length_longest = len(val)
+                print(longest_word)
+
+        print(longest_word)
 
     else: 
         print(datapoint)
@@ -247,7 +255,7 @@ if __name__ == "__main__":
     # Second running exercise 22:45
     # vocab, merges = train_bpe(OpenWebText_file, 32000, special_tokens, folder_path=checkpoints_path)
 
-    # read_checkpoint("vocab", checkpoints_path / 'owt')
-    standardize_checkpoints(checkpoints_path / 'owt')
+    read_checkpoint("vocab", checkpoints_path / 'owt')
+    # standardize_checkpoints(checkpoints_path / 'owt')
 
 
