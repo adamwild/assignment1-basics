@@ -123,7 +123,10 @@ class Tokenizer:
         for token_int in ids:
             decoded += self.vocab[token_int]
 
-        return decoded.decode("utf-8")
+        try:
+            return decoded.decode("utf-8")
+        except UnicodeDecodeError:
+            return decoded
 
 
 
@@ -147,40 +150,11 @@ if __name__ == "__main__":
     merges_example = [(b't', b'h'), (b' ', b'c'), (b' ', b'a'), (b'th', b'e'), (b' a', b't')]
     text_example = 'the cat ate'
 
-    # tok = Tokenizer(vocab=vocab_example, merges=merges_example, special_tokens=["<|endoftext|>"])
-
-    # int_sequence = tok.encode(text_example)
-    # print(int_sequence)
-
-    from tests.test_tokenizer import get_tokenizer_from_vocab_merges_path
-    # [35, 72, 68, 220, 43, 68, ...] == [32423, 406, ...00, 2059, ...]
-
-    
+    """from tests.test_tokenizer import get_tokenizer_from_vocab_merges_path
     tokenizer = get_tokenizer_from_vocab_merges_path(
-        vocab_path=VOCAB_PATH,
-        merges_path=MERGES_PATH,
-    )
-    corpus_path = FIXTURES_PATH / "german.txt"
-    with open(corpus_path) as f:
-        corpus_contents = f.read()
-
-    ids = tokenizer.encode(corpus_contents)
-    
-    print(ids)
-
-    """vocab_filepath, merges_filepath = get_filepaths_checkpoints('owt')
-
-    tok = Tokenizer.from_files(vocab_filepath=vocab_filepath, merges_filepath=merges_filepath, special_tokens=["<|endoftext|>"])
-
-    int_sequence = tok.encode(text_example)
-    print(tok.decode(int_sequence))"""
-
-
-    """
-    from tests.test_tokenizer import get_tokenizer_from_vocab_merges_path
-    tokenizer = get_tokenizer_from_vocab_merges_path(
-        vocab_path=VOCAB_PATH,
-        merges_path=MERGES_PATH,
+        vocab_path=VOCAB_PATH, merges_path=MERGES_PATH, special_tokens=["<|endoftext|>"]
     )"""
 
-    
+    # from tests.test_tokenizer import test_roundtrip_unicode_string_with_special_tokens
+
+    # test_roundtrip_unicode_string_with_special_tokens()
