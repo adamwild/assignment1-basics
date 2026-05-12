@@ -53,9 +53,13 @@ class Tokenizer:
         int_sequence = []
 
         for pre_token in pre_tokens:
+            if self.special_tokens and pre_token in self.special_tokens:
+                did_find_merge = False
+                pre_token = [pre_token.encode("utf-8")]
 
-            did_find_merge = True
-            pre_token = list(break_token(pre_token))
+            else:
+                did_find_merge = True
+                pre_token = list(break_token(pre_token))
 
             # Loop until we can not reduce the pre-token with any available merge
             while did_find_merge:
@@ -143,14 +147,17 @@ if __name__ == "__main__":
     merges_example = [(b't', b'h'), (b' ', b'c'), (b' ', b'a'), (b'th', b'e'), (b' a', b't')]
     text_example = 'the cat ate'
 
-    # tok = Tokenizer(vocab=vocab_example, merges=merges_example, special_tokens=["<|endoftext|>"])
+    tok = Tokenizer(vocab=vocab_example, merges=merges_example, special_tokens=["<|endoftext|>"])
 
-    vocab_filepath, merges_filepath = get_filepaths_checkpoints('owt')
+    int_sequence = tok.encode(text_example)
+    print(int_sequence)
+
+    """vocab_filepath, merges_filepath = get_filepaths_checkpoints('owt')
 
     tok = Tokenizer.from_files(vocab_filepath=vocab_filepath, merges_filepath=merges_filepath, special_tokens=["<|endoftext|>"])
 
     int_sequence = tok.encode(text_example)
-    print(tok.decode(int_sequence))
+    print(tok.decode(int_sequence))"""
 
 
     """

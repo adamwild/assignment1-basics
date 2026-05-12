@@ -8,14 +8,20 @@ def string_to_pretoken(text, special_tokens):
     """
     if special_tokens is None:
         special_tokens = []
+
+    special_tokens.sort(reverse=True)
+
     # Removing special tokens before pre-tokenization
-    docs = re.split("|".join([re.escape(token) for token in special_tokens]), text)
+    docs = [part for part in re.split(f"({"|".join(map(re.escape, special_tokens))})", text) if part]
 
     # Pre-tokenize
     PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
     
     list_pretokens = []
     for doc in docs:
+        if doc in special_tokens:
+            list_pretokens.append(doc)
+            continue
         for match in re.finditer(PAT, doc):
             pre_token = match.group()
             list_pretokens.append(pre_token)
