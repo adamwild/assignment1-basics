@@ -1,8 +1,8 @@
 
-
+import pickle
 from typing import Iterable, Iterator
 from cs336_basics.bpe_tokenizer import break_token
-from cs336_basics.bpe_codec_utils import string_to_pretoken, hash_merges, reverse_vocab
+from cs336_basics.bpe_codec_utils import string_to_pretoken, hash_merges, reverse_vocab, get_filepaths_checkpoints
 
 class Tokenizer:
     def __init__(self, vocab, merges, special_tokens=None):
@@ -21,6 +21,7 @@ class Tokenizer:
         self.merge_to_ind = hash_merges(merges)
         self.token_to_int = reverse_vocab(vocab)
 
+    @classmethod
     def from_files(cls, vocab_filepath, merges_filepath, special_tokens=None):
         """Class method that constructs and returns a Tokenizer from a serialized vocabulary and list of merges (in the same format that your BPE training code output) and (optionally) a list of special tokens.
 
@@ -29,7 +30,13 @@ class Tokenizer:
             merges_filepath (str): _description_
             special_tokens (list[str], optional): _description_. Defaults to None.
         """
-        pass
+        with open(vocab_filepath, "rb") as f:
+            vocab = pickle.load(f)
+
+        with open(merges_filepath, "rb") as f:
+            merges = pickle.load(f)
+
+        return cls(vocab, merges, special_tokens)
     
     def encode(self, text: str) -> list[int]:
         """Encode an input text into a sequence of token IDs.
@@ -92,7 +99,11 @@ class Tokenizer:
         Yields:
             Iterator[int]: _description_
         """
-        pass
+        for string in iterable:
+            int_sequence = self.encode(string)
+
+            for token_int in int_sequence:
+                yield token_int
     
     def decode(self, ids: list[int]) -> str:
         """Decode a sequence of token IDs into text.
@@ -103,7 +114,12 @@ class Tokenizer:
         Returns:
             str: _description_
         """
-        pass
+
+        decoded = b""
+        for token_int in ids:
+            decoded += self.vocab[token_int]
+
+        return decoded.decode("utf-8")
 
 
 
@@ -127,9 +143,14 @@ if __name__ == "__main__":
     merges_example = [(b't', b'h'), (b' ', b'c'), (b' ', b'a'), (b'th', b'e'), (b' a', b't')]
     text_example = 'the cat ate'
 
-    tok = Tokenizer(vocab=vocab_example, merges=merges_example, special_tokens=["<|endoftext|>"])
+    # tok = Tokenizer(vocab=vocab_example, merges=merges_example, special_tokens=["<|endoftext|>"])
 
-    tok.encode(text_example)
+    vocab_filepath, merges_filepath = get_filepaths_checkpoints('owt')
+
+    tok = Tokenizer.from_files(vocab_filepath=vocab_filepath, merges_filepath=merges_filepath, special_tokens=["<|endoftext|>"])
+
+    int_sequence = tok.encode(text_example)
+    print(tok.decode(int_sequence))
 
 
     """
