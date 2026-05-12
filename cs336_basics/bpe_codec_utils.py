@@ -6,20 +6,23 @@ def string_to_pretoken(text, special_tokens):
 
     'the cat ate' -> ['the', ' cat', ' ate']
     """
-    if special_tokens is None:
-        special_tokens = []
+    if special_tokens is not None:
+        # special_tokens = []
 
-    special_tokens.sort(reverse=True)
+        special_tokens.sort(reverse=True)
 
-    # Removing special tokens before pre-tokenization
-    docs = [part for part in re.split(f"({"|".join(map(re.escape, special_tokens))})", text) if part]
+        # Removing special tokens before pre-tokenization
+        docs = [part for part in re.split(f"({"|".join(map(re.escape, special_tokens))})", text) if part]
+
+    else:
+        docs = [text]
 
     # Pre-tokenize
     PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-    
+
     list_pretokens = []
     for doc in docs:
-        if doc in special_tokens:
+        if special_tokens and doc in special_tokens:
             list_pretokens.append(doc)
             continue
         for match in re.finditer(PAT, doc):
